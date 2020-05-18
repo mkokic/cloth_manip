@@ -1,0 +1,252 @@
+import h5py
+import numpy as np
+import glob
+import random
+import scipy
+from vis_utils import *
+from IPython import embed
+
+
+def scale_point_cloud(batch_data):
+    """ Randomly scale the point clouds to augument the dataset
+        scaling is per shape based along up direction
+        Input:
+          BxNx3 array, original batch of point clouds
+        Return:
+          BxNx3 array, rotated batch of point clouds
+    """
+    scaled_data = np.zeros(batch_data.shape, dtype=np.float32)
+    for k in range(batch_data.shape[0]):
+        scale_factor = random.randint(0, 9) / 10.
+        scale_matrix = np.eye(3)
+        id = random.randint(0, 2)
+        scale_matrix[0, 0] = 0.05
+        shape_pc = batch_data[k, ...]
+        scaled_data[k, ...] = np.dot(shape_pc.reshape((-1, 3)), scale_matrix)
+    return scaled_data
+
+
+def rotate_point_cloud(batch_data):
+    """ Randomly rotate the point clouds to augument the dataset
+        rotation is per shape based along up direction
+        Input:
+          BxNx3 array, original batch of point clouds
+        Return:
+          BxNx3 array, rotated batch of point clouds
+    """
+    rotated_data = np.zeros(batch_data.shape, dtype=np.float32)
+    for k in range(batch_data.shape[0]):
+        rotation_angle = np.random.uniform() * 2 * np.pi
+        cosval = np.cos(rotation_angle)
+        sinval = np.sin(rotation_angle)
+        rotation_matrix = np.array([[cosval, sinval, 0],
+                                    [-sinval, cosval, 0],
+                                    [0, 0, 1]])
+        shape_pc = batch_data[k, ...]
+        # Mia
+        from scipy.stats import special_ortho_group
+        rotated_data[k, ...] = np.dot(shape_pc.reshape((-1, 3)), special_ortho_group.rvs(3))
+    return rotated_data
+
+
+def jitter_point_cloud(batch_data, sigma=0.01, clip=0.05):
+    """ Randomly jitter points. jittering is per point.
+        Input:
+          BxNx3 array, original batch of point clouds
+        Return:
+          BxNx3 array, jittered batch of point clouds
+    """
+    B, N, C = batch_data.shape
+    assert (clip > 0)
+    jittered_data = np.clip(sigma * np.random.randn(B, N, C), -1 * clip, clip)
+    jittered_data += batch_data
+    return jittered_data
+
+
+def normalize_data(p, data):
+    return ((p - data.min(0)) / (data.max(0) - data.min(0)) * 1.).astype(np.uint8)
+
+
+def scale_data(s):
+    if not (hasattr(s, '__len__') and len(s) >= 2):
+        raise ValueError("'s' needs have a length greater one")
+    dim = len(s)
+    S_m = np.identity(dim + 1)
+    diag = np.append(s, 1)
+    np.fill_diagonal(S_m, diag)
+    return S_m
+
+
+def shuffle_data(data):
+    perm = np.random.permutation(len(data[0]))
+    data_shuffled = [x[perm] for x in data]
+    return data_shuffled
+
+
+def closest_unitary(A):
+    V, __, Wh = scipy.linalg.svd(A)
+    U = np.matrix(V.dot(Wh))
+    # B = np.dot(A, np.linalg.pinv(scipy.linalg.sqrtm(np.dot(A, A.T))))
+    return U
+
+
+def get_batch(data, num):
+    num_el = data[0].shape[0]
+    while True:
+        idx = np.arange(0, num_el)
+        # if shuffle:
+        np.random.shuffle(idx)
+        current_idx = 0
+        while current_idx < num_el:
+            batch_idx = idx[current_idx:current_idx + num]
+            current_idx += num
+            data = [[x[i] for i in batch_idx] for x in data]
+            yield data
+
+
+def get_ordered_list(points, x):
+    points = np.concatenate((points, np.arange(2000).reshape(2000, 1)), 1)
+    sorted_points = sorted(points, key=lambda p: np.sqrt((p[0] - x[0]) ** 2 + (p[1] - x[1]) ** 2 + (p[2] - x[2]) ** 2))
+    sp = np.array(sorted_points).reshape(2000, 4)[:, :3]
+    idx = np.array(sorted_points).reshape(2000, 4)[:, -1]
+    return sp, idx
+
+
+def load_data_cloth(num):
+    path = '/mnt/md0/mkokic/Github_Mia/cloth_manip/create_cloth/hdf5/'
+    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if '40x25' not in f_hdf5]
+    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if '40x25' in f_hdf5]
+
+    random.shuffle(f_train)
+    f_all = f_train + f_test
+
+    pInit = np.zeros((len(f_all), num, 3))
+    gIndex = np.zeros((len(f_all), 3))
+    pFinal = np.zeros((len(f_all), num, 3))
+    pError = np.zeros((len(f_all), 1))
+    idx_tr, idx_te = [], []
+
+    for i, f in enumerate(f_all):
+        p_init = np.array(f.get('pInit'))[0].reshape((-1, 3))
+        f_init = np.array(f.get('pFinal'))[0].reshape((-1, 3))
+        g_init = np.array(f.get('gIndex'))[0].reshape((3, ))
+
+        # gIndex[i] = (g_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
+        # pInit[i] = (p_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
+        # pFinal[i] = (f_init - f_init.mean(0)) / (f_init.std(0) - 1e-8)
+        gIndex[i] = g_init
+        pInit[i] = p_init
+        pFinal[i] = f_init
+        pError[i] = ((p_init - f_init) ** 2).mean()
+
+        if i < len(f_train):
+            idx_tr.append(i)
+        else:
+            idx_te.append(i)
+
+    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 3),
+                  'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
+    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
+                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 3),
+                 'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
+                 'pError': pError[idx_te].reshape((len(idx_te), 1))}
+
+    return data_train, data_test
+
+
+def load_data_shirt(num):
+    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/mn40/'
+    f_train = list()
+    for f_hdf5 in glob.glob(path + '100_train/*/*.hdf5'):
+        if 'tshirt_18' not in f_hdf5:
+            try:
+                f_train.append(h5py.File(f_hdf5, 'r'))
+            except:
+                continue
+    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5') if 'tshirt_18' in f_hdf5]
+
+    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/unit/'
+    # f_train += [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*.hdf5') if '_6' not in f_hdf5]
+    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*.hdf5') if '_6' in f_hdf5]
+
+    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/modelnet40/data/'
+    # f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*train*.h5')]
+    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*test*.h5')]
+
+    random.shuffle(f_train)
+    f_all = f_train + f_test
+
+    # pInit = np.zeros((1, num, 3))
+    # gIndex = np.zeros((1, 6))
+    # pFinal = np.zeros((1, num, 3))
+    # s = 0
+
+    pInit = np.zeros((len(f_all), num, 3))
+    gIndex = np.zeros((len(f_all), 6))
+    pFinal = np.zeros((len(f_all), num, 3))
+    dims = np.zeros((len(f_all), 2))
+    idx_tr = []
+    idx_te = []
+    for i, f in enumerate(f_all):
+        try:
+            p_init = np.array(f.get('pInit'))[0].reshape((1, -1, 3))
+        except:
+            continue
+        f_init = np.array(f.get('pFinal'))[0].reshape((1, -1, 3))
+        g_init = np.array(f.get('gIndex'))[0].reshape((1, 6))
+
+        try:
+            ids = sorted(random.sample(range(p_init.shape[1]), num))
+            p_init = p_init[:, ids, :]
+            f_init = f_init[:, ids, :]
+
+            g_init = np.concatenate(((g_init[0, :3] - p_init.mean(1)) / (p_init.std(1) - 1e-8),
+                                     (g_init[0, 3:] - p_init.mean(1)) / (p_init.std(1) - 1e-8)), 0).reshape(
+                1, 6)
+            # g_init = (g_init - p_init.mean(1)) / (p_init.std(1) - 1e-8)
+            p_init = (p_init - p_init.mean(1)) / (p_init.std(1) - 1e-8)
+            f_init = (f_init - f_init.mean(1)) / (f_init.std(1) - 1e-8)
+
+            if f_init[0, :, :].min() > -4 and f_init[0, :, :].max() < 4:
+                gIndex[i] = g_init[0]
+                pInit[i] = p_init[0, :, :]
+                pFinal[i] = f_init[0, :, :]
+                dims[i] = np.array([np.abs(p_init[0][:, 0].max() - p_init[0][:, 0].min()) + 1,
+                                    np.abs(p_init[0][:, 1].max() - p_init[0][:, 1].min()) + 1])
+                if i < len(f_train):
+                    idx_tr.append(i)
+                else:
+                    idx_te.append(i)
+        except:
+            continue
+
+    #     p_init = f['data'][:][:, :num, :]
+    #     f_init = f['data'][:][:, :num, :]
+    #     g_init = np.zeros((len(p_init), 6))
+    #
+    #     if i < len(f_train):
+    #         s += p_init.shape[0]
+    #     gIndex = np.vstack((gIndex, g_init))
+    #     pInit = np.vstack((pInit, p_init))
+    #     pFinal = np.vstack((pFinal, f_init))
+    #
+    # gIndex = gIndex[1:]
+    # pInit = pInit[1:]
+    # pFinal = pFinal[1:]
+    #
+    # idx_tr = np.arange(s)
+    # idx_te = np.arange(s, len(pInit))[:100]
+    # dims = np.zeros((len(pInit), 2))
+
+    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
+                  'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'dims': dims[idx_tr].reshape((len(idx_tr), 2))}
+    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
+                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
+                 'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
+                 'dims': dims[idx_te].reshape((len(idx_te), 2))}
+
+    return data_train, data_test
