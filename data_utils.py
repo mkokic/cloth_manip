@@ -113,15 +113,18 @@ def get_ordered_list(points, x):
 
 
 def load_data_cloth(num):
-    path = '/mnt/md0/mkokic/Github_Mia/cloth_manip/create_cloth/hdf5/'
-    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if '40x25' not in f_hdf5]
-    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if '40x25' in f_hdf5]
+    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/proc_data/'
+    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if
+               'cloth_40_0_0_0_-0.1_0.0_-0.1_0.1_0.0_0.1' not in f_hdf5]
+    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if
+              'cloth_40_0_0_0_-0.1_0.0_-0.1_0.1_0.0_0.1' in f_hdf5]
 
     random.shuffle(f_train)
+    # random.shuffle(f_test)
     f_all = f_train + f_test
 
     pInit = np.zeros((len(f_all), num, 3))
-    gIndex = np.zeros((len(f_all), 3))
+    gIndex = np.zeros((len(f_all), 6))
     pFinal = np.zeros((len(f_all), num, 3))
     pError = np.zeros((len(f_all), 1))
     idx_tr, idx_te = [], []
@@ -129,15 +132,15 @@ def load_data_cloth(num):
     for i, f in enumerate(f_all):
         p_init = np.array(f.get('pInit'))[0].reshape((-1, 3))
         f_init = np.array(f.get('pFinal'))[0].reshape((-1, 3))
-        g_init = np.array(f.get('gIndex'))[0].reshape((3, ))
+        g_init = np.array(f.get('gIndex'))[0].reshape((6,))
 
         # gIndex[i] = (g_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
         # pInit[i] = (p_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
         # pFinal[i] = (f_init - f_init.mean(0)) / (f_init.std(0) - 1e-8)
+        # pError[i] = ((p_init - f_init) ** 2).mean()
         gIndex[i] = g_init
         pInit[i] = p_init
-        pFinal[i] = f_init
-        pError[i] = ((p_init - f_init) ** 2).mean()
+        pFinal[i] = f_init - g_init[:3]
 
         if i < len(f_train):
             idx_tr.append(i)
@@ -145,11 +148,11 @@ def load_data_cloth(num):
             idx_te.append(i)
 
     data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
-                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 3),
+                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
                   'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
                   'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
     data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
-                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 3),
+                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
                  'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
                  'pError': pError[idx_te].reshape((len(idx_te), 1))}
 
@@ -222,7 +225,7 @@ def load_data_shirt(num):
         except:
             continue
 
-    #     p_init = f['data'][:][:, :num, :]
+    # p_init = f['data'][:][:, :num, :]
     #     f_init = f['data'][:][:, :num, :]
     #     g_init = np.zeros((len(p_init), 6))
     #

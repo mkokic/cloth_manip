@@ -40,6 +40,6 @@ def plot(inputs, grasp, output, output_pred, grasp_pred):
     # ax2.scatter(grasp[:, 0], grasp[:, 1], grasp[:, 2], c='black', marker='x', alpha=1.0, s=100)
 
     ax3.scatter(output_pred[:, 0], output_pred[:, 1], output_pred[:, 2], c='blue', marker='.', alpha=0.7)
-    # ax3.scatter(grasp_pred[:, 0], grasp_pred[:, 1], grasp_pred[:, 2], c='black', marker='x', alpha=1.0, s=100)
+    ax3.scatter(grasp_pred[:, 0], grasp_pred[:, 1], grasp_pred[:, 2], c='black', marker='x', alpha=1.0, s=100)
 
     plt.show()

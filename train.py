@@ -70,29 +70,29 @@ class ClothModel(object):
                 # aug_data = jitter_point_cloud(rotate_point_cloud(np.array(train_batch[2]).reshape((-1, opt.num, 3))))
                 feed_dict = dict()
                 feed_dict[plh[0]] = np.array(train_batch[0]).reshape((-1, opt.num * 3))
-                feed_dict[plh[1]] = np.array(train_batch[1]).reshape((-1, 3))
+                feed_dict[plh[1]] = np.array(train_batch[1]).reshape((-1, 6))
                 # feed_dict[plh[2]] = aug_data.reshape((-1, opt.num * 3))
                 feed_dict[plh[2]] = np.array(train_batch[2]).reshape((-1, opt.num * 3))
                 feed_dict[plh[3]] = np.array(train_batch[3]).reshape((-1, 1))
                 feed_dict[plh[-1]] = True
 
-                loss_tr_, _ = sess.run([model.loss, model.optim], feed_dict)
+                loss_tr_, _ = sess.run([model.loss_pts, model.optim], feed_dict)
                 losses_tr.append(loss_tr_)
                 summary = sess.run(merged, feed_dict)
                 train_writer.add_summary(summary, epoch)
 
             feed_dict = {plh[i]: dte[i] for i in range(4)}
             feed_dict[plh[-1]] = False
-            losses_te = sess.run(model.loss, feed_dict)
+            losses_te_pts, losses_te_grasp = sess.run([model.loss_pts, model.loss_grasp], feed_dict)
             summary = sess.run(merged, feed_dict)
             test_writer.add_summary(summary, epoch)
 
             epoch_end_time = time.time()
             per_epoch_ptime = epoch_end_time - epoch_start_time
             print(
-                '[%d/%d] - ptime: %.2f, loss_train: %.6f, loss_test: %.6f'
-                % ((epoch + 1), epoch_final, per_epoch_ptime, np.mean(losses_tr), losses_te))
-            if (epoch + 1) % 100 == 0:
+                '[%d/%d] - ptime: %.2f, loss_train: %.6f, loss_test_pts: %.6f, loss_test_grasp: %.6f'
+                % ((epoch + 1), epoch_final, per_epoch_ptime, np.mean(losses_tr), losses_te_pts, losses_te_grasp))
+            if (epoch + 1) % 50 == 0:
                 saver.save(sess, '%s/Epoch_(%d).ckpt' % ('models_' + str(opt.problem), epoch))
 
         save_path = saver.save(sess, '%s/Epoch_(%d).ckpt' % ('models_' + str(opt.problem), epoch))
@@ -112,25 +112,26 @@ class ClothModel(object):
 
         tid = 1
 
-        if opt.load_raw:
-            f_raw = h5py.File('cloth_predicted.hdf5', 'r')
-            p_init = np.array(f_raw.get('pInit')).reshape((-1, 3))
-            g_init = np.array(f_raw.get('gIndex')).reshape((3,))
-            f_init = np.array(f_raw.get('pFinal')).reshape((-1, 3))
-            dte = [p_init.reshape(-1, opt.num * 3),
-                   g_init.reshape(-1, 3),
-                   f_init.reshape(-1, opt.num * 3),
-                   np.zeros((len(p_init), 1))]
-        else:
-            dte = [data[tid]['pInit'],
-                   data[tid]['gIndex'],
-                   data[tid]['pFinal'],
-                   data[tid]['pError']]
+        # if opt.load_raw:
+        #     f_raw = h5py.File('cloth_predicted.hdf5', 'r')
+        #     p_init = np.array(f_raw.get('pInit')).reshape((-1, 3))
+        #     g_init = np.array(f_raw.get('gIndex')).reshape((3,))
+        #     f_init = np.array(f_raw.get('pFinal')).reshape((-1, 3))
+        #     dte = [p_init.reshape(-1, opt.num * 3),
+        #            g_init.reshape(-1, 3),
+        #            f_init.reshape(-1, opt.num * 3),
+        #            np.zeros((len(p_init), 1))]
+        # else:
+        dte = [data[tid]['pInit'],
+               data[tid]['gIndex'],
+               data[tid]['pFinal'],
+               data[tid]['pError']]
 
         feed_dict = {plh[i]: dte[i] for i in range(4)}
         feed_dict[plh[-1]] = False
         if opt.problem == 'posh':
             grasp, pts = sess.run([model.pred_grasp, model.pred_pts], feed_dict)
+            grasp[:, [1, 4]] = 0
             pts = pts.reshape((len(pts), -1))
         else:
             score = sess.run(model.pred_score, feed_dict).reshape(-1, 1)
@@ -146,22 +147,22 @@ class ClothModel(object):
                      pts[k].reshape(-1, 3),
                      grasp[k].reshape(-1, 3))
 
-                raw = raw_input('Save as hdf5 [y/n]? ')
-                if raw == 'y':
-                    f_pred = h5py.File(
-                        '/mnt/md0/mkokic/Github_Mia/cloth_manip/cloth_predicted.hdf5', 'w')
-                    pInit_ = f_pred.create_dataset("pInit",
-                                                   (pts[k].reshape(-1, 3).shape[0], pts[k].reshape(-1, 3).shape[1]),
-                                                   dtype='f8')
-                    pInit_[...] = pts[k].reshape(-1, 3)
-                    gIndex_ = f_pred.create_dataset("gIndex", (
-                        dte[1][k].reshape(-1, 3).shape[0], dte[1][k].reshape(-1, 3).shape[1]),
-                                                    dtype='f8')
-                    gIndex_[...] = dte[1][k].reshape(-1, 3)
-                    pFinal_ = f_pred.create_dataset("pFinal", (
-                        dte[2][k].reshape(-1, 3).shape[0], dte[2][k].reshape(-1, 3).shape[1]),
-                                                    dtype='f8')
-                    pFinal_[...] = dte[2][k].reshape(-1, 3)
+                # raw = raw_input('Save as hdf5 [y/n]? ')
+                # if raw == 'y':
+                #     f_pred = h5py.File(
+                #         '/mnt/md0/mkokic/Github_Mia/cloth_manip/cloth_predicted.hdf5', 'w')
+                #     pInit_ = f_pred.create_dataset("pInit",
+                #                                    (pts[k].reshape(-1, 3).shape[0], pts[k].reshape(-1, 3).shape[1]),
+                #                                    dtype='f8')
+                #     pInit_[...] = pts[k].reshape(-1, 3)
+                #     gIndex_ = f_pred.create_dataset("gIndex", (
+                #         dte[1][k].reshape(-1, 3).shape[0], dte[1][k].reshape(-1, 3).shape[1]),
+                #                                     dtype='f8')
+                #     gIndex_[...] = dte[1][k].reshape(-1, 3)
+                #     pFinal_ = f_pred.create_dataset("pFinal", (
+                #         dte[2][k].reshape(-1, 3).shape[0], dte[2][k].reshape(-1, 3).shape[1]),
+                #                                     dtype='f8')
+                #     pFinal_[...] = dte[2][k].reshape(-1, 3)
 
             if opt.problem == 'heatmap':
                 embed()
