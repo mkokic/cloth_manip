@@ -5,6 +5,7 @@ import random
 import scipy
 from vis_utils import *
 from IPython import embed
+import numpy_indexed as npi
 
 
 def scale_point_cloud(batch_data):
@@ -127,34 +128,31 @@ def load_data_cloth(num):
     gIndex = np.zeros((len(f_all), 6))
     pFinal = np.zeros((len(f_all), num, 3))
     pError = np.zeros((len(f_all), 1))
-    idx_tr, idx_te = [], []
 
     for i, f in enumerate(f_all):
         p_init = np.array(f.get('pInit'))[0].reshape((-1, 3))
         f_init = np.array(f.get('pFinal'))[0].reshape((-1, 3))
         g_init = np.array(f.get('gIndex'))[0].reshape((6,))
 
-        # gIndex[i] = (g_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
-        # pInit[i] = (p_init - p_init.mean(0)) / (p_init.std(0) - 1e-8)
-        # pFinal[i] = (f_init - f_init.mean(0)) / (f_init.std(0) - 1e-8)
-        # pError[i] = ((p_init - f_init) ** 2).mean()
         gIndex[i] = g_init
         pInit[i] = p_init
         pFinal[i] = f_init - g_init[:3]
+        pError[i] = ((p_init - f_init) ** 2).mean()
 
-        if i < len(f_train):
-            idx_tr.append(i)
-        else:
-            idx_te.append(i)
+    p_unique = npi.unique(pInit, axis=0)
+    for pu in p_unique:
+        idx_p = [i for i, x in enumerate(pInit) if (x == pu).all()]
+        tmp = pError[idx_p]
+        pError[idx_p] = tmp / np.linalg.norm(tmp)
 
-    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
-                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
-                  'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
-                  'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
-    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
-                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
-                 'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
-                 'pError': pError[idx_te].reshape((len(idx_te), 1))}
+    data_train = {'pInit': pInit[:len(f_train)].reshape((len(f_train), num * 3)),
+                  'gIndex': gIndex[:len(f_train)].reshape(len(f_train), 6),
+                  'pFinal': pFinal[:len(f_train)].reshape((len(f_train), num * 3)),
+                  'pError': pError[:len(f_train)].reshape((len(f_train), 1))}
+    data_test = {'pInit': pInit[len(f_train):].reshape((len(f_test), num * 3)),
+                 'gIndex': gIndex[len(f_train):].reshape(len(f_test), 6),
+                 'pFinal': pFinal[len(f_train):].reshape((len(f_test), num * 3)),
+                 'pError': pError[len(f_train):].reshape((len(f_test), 1))}
 
     return data_train, data_test
 

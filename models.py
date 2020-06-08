@@ -63,14 +63,18 @@ class Model:
             self.loss_grasp = tf.losses.mean_squared_error(
                 self.plh['gIndex'], self.pred_grasp)
 
+            learning_rate = get_learning_rate(opt, batch)
+            self.optim = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_pts + self.loss_grasp, global_step=batch)
+            self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
+
         # Get heatmap
         if opt.problem == 'heatmap':
             self.pred_score = cnn_heatmap(opt, self.plh['pInit'], self.plh['gIndex'])
-            self.loss = tf.losses.mean_squared_error(self.plh['pError'], self.pred_score)
+            self.loss_pts = tf.losses.sigmoid_cross_entropy(self.plh['pError'], self.pred_score)
+
+            self.optim = tf.train.RMSPropOptimizer(opt.lr).minimize(self.loss_pts)
+            self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
 
         tf.summary.scalar('loss', self.loss_pts)
 
-        learning_rate = get_learning_rate(opt, batch)
-        self.optim = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_pts + self.loss_grasp, global_step=batch)
-        # self.optim = tf.train.RMSPropOptimizer(opt.lr).minimize(self.loss)
-        self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
+
