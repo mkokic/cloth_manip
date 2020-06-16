@@ -12,14 +12,13 @@ class TrainOptions(object):
                                  choices=['train', 'test'], default='train')
         self.parser.add_argument('--problem', required=True, type=str,
                                  choices=['posh', 'heatmap'], default='posh')
-        self.parser.add_argument('--load_raw', type=int, default=0)
         self.parser.add_argument('--cont', type=int, default=0)
-        self.parser.add_argument('--bs', type=int, default=32)
-        self.parser.add_argument('--epochs', type=int, default=500)
+        self.parser.add_argument('--bs', type=int, default=249)
+        self.parser.add_argument('--epochs', type=int, default=1000)
         self.parser.add_argument('--lr', type=float, default=0.0001)
         self.parser.add_argument('--num', type=float, default=1600)
         self.parser.add_argument('--data_path', type=str,
-                                 default='/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/mn40/')
+                                 default='/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/proc_data/')
 
     def parse(self):
         if not self.initialized:

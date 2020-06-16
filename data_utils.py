@@ -114,140 +114,152 @@ def get_ordered_list(points, x):
 
 
 def load_data_cloth(num):
-    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/proc_data/'
-    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if
-               'cloth_40_0_0_0_-0.1_0.0_-0.1_0.1_0.0_0.1' not in f_hdf5]
-    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*.hdf5') if
-              'cloth_40_0_0_0_-0.1_0.0_-0.1_0.1_0.0_0.1' in f_hdf5]
+    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/proc_data_small'
+    f_all = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/train/*.hdf5')]
+    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/test/*.hdf5')]
 
-    random.shuffle(f_train)
-    # random.shuffle(f_test)
-    f_all = f_train + f_test
+    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/proc_data_small/'
+    # f_all = list()
+    # for f_hdf5 in glob.glob(path + '/*/*.hdf5'):
+    #     try:
+    #         f_all.append(h5py.File(f_hdf5, 'r'))
+    #     except:
+    #         embed()
+
+    f_train = f_all[:int(len(f_all) * .9)]
+    # f_all = f_train + f_test
 
     pInit = np.zeros((len(f_all), num, 3))
     gIndex = np.zeros((len(f_all), 6))
     pFinal = np.zeros((len(f_all), num, 3))
     pError = np.zeros((len(f_all), 1))
 
+    idx_tr = []
+    idx_te = []
     for i, f in enumerate(f_all):
         p_init = np.array(f.get('pInit'))[0].reshape((-1, 3))
         f_init = np.array(f.get('pFinal'))[0].reshape((-1, 3))
         g_init = np.array(f.get('gIndex'))[0].reshape((6,))
 
-        gIndex[i] = g_init
-        pInit[i] = p_init
-        pFinal[i] = f_init - g_init[:3]
-        pError[i] = ((p_init - f_init) ** 2).mean()
+        if p_init.shape[0] >= num:
+            # ids = sorted(random.sample(range(p_init.shape[0]), num))
+            # p_init = p_init[ids, :]
+            # f_init = f_init[ids, :]
 
-    p_unique = npi.unique(pInit, axis=0)
-    for pu in p_unique:
-        idx_p = [i for i, x in enumerate(pInit) if (x == pu).all()]
-        tmp = pError[idx_p]
-        pError[idx_p] = tmp / np.linalg.norm(tmp)
+            pError[i] = ((p_init - f_init) ** 2).mean()
+            pInit[i] = p_init
+            gIndex[i] = g_init
+            pFinal[i] = f_init - g_init[:3]
 
-    data_train = {'pInit': pInit[:len(f_train)].reshape((len(f_train), num * 3)),
-                  'gIndex': gIndex[:len(f_train)].reshape(len(f_train), 6),
-                  'pFinal': pFinal[:len(f_train)].reshape((len(f_train), num * 3)),
-                  'pError': pError[:len(f_train)].reshape((len(f_train), 1))}
-    data_test = {'pInit': pInit[len(f_train):].reshape((len(f_test), num * 3)),
-                 'gIndex': gIndex[len(f_train):].reshape(len(f_test), 6),
-                 'pFinal': pFinal[len(f_train):].reshape((len(f_test), num * 3)),
-                 'pError': pError[len(f_train):].reshape((len(f_test), 1))}
+            if i < len(f_train):
+                idx_tr.append(i)
+            else:
+                idx_te.append(i)
+
+    # p_unique = npi.unique(pInit, axis=0)
+    # for pu in p_unique:
+    #     idx_p = [i for i, x in enumerate(pInit) if (x == pu).all()]
+    #     tmp = pError[idx_p]
+    #     pError[idx_p] = 1.0 - ((tmp - min(tmp)) / (max(tmp) - min(tmp)))
+
+    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
+                  'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
+                  'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
+    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
+                 'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
+                 'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
+                 'pError': pError[idx_te].reshape((len(idx_te), 1))}
 
     return data_train, data_test
 
 
 def load_data_shirt(num):
-    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/mn40/'
-    f_train = list()
-    for f_hdf5 in glob.glob(path + '100_train/*/*.hdf5'):
-        if 'tshirt_18' not in f_hdf5:
-            try:
-                f_train.append(h5py.File(f_hdf5, 'r'))
-            except:
-                continue
-    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5') if 'tshirt_18' in f_hdf5]
+    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/mn40/'
+    # f_train = list()
+    # for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5'):
+    #     if 'tshirt_18' not in f_hdf5:
+    #         try:
+    #             f_train.append(h5py.File(f_hdf5, 'r'))
+    #         except:
+    #             # embed()
+    #             continue
+    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5') if 'tshirt_18' in f_hdf5]
 
-    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/unit/'
-    # f_train += [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*.hdf5') if '_6' not in f_hdf5]
-    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*.hdf5') if '_6' in f_hdf5]
-
-    # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/modelnet40/data/'
-    # f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*train*.h5')]
-    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*test*.h5')]
+    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/modelnet40/data/'
+    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*train*.h5')]
+    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*test*.h5')]
 
     random.shuffle(f_train)
     f_all = f_train + f_test
 
-    # pInit = np.zeros((1, num, 3))
-    # gIndex = np.zeros((1, 6))
-    # pFinal = np.zeros((1, num, 3))
-    # s = 0
+    pInit = np.zeros((1, num, 3))
+    gIndex = np.zeros((1, 6))
+    pFinal = np.zeros((1, num, 3))
+    s = 0
 
-    pInit = np.zeros((len(f_all), num, 3))
-    gIndex = np.zeros((len(f_all), 6))
-    pFinal = np.zeros((len(f_all), num, 3))
-    dims = np.zeros((len(f_all), 2))
-    idx_tr = []
-    idx_te = []
+    # pInit = np.zeros((len(f_all), num, 3))
+    # gIndex = np.zeros((len(f_all), 6))
+    # pFinal = np.zeros((len(f_all), num, 3))
+    # pError = np.zeros((len(f_all), 1))
+    # idx_tr = []
+    # idx_te = []
+    # for i, f in enumerate(f_all):
+    #     try:
+    #         p_init = np.array(f.get('pInit'))[0].reshape((1, -1, 3))
+    #     except:
+    #         continue
+    #     f_init = np.array(f.get('pFinal'))[0].reshape((1, -1, 3))
+    #     g_init = np.array(f.get('gIndex'))[0].reshape((1, 6))
+    #
+    #     try:
+    #         ids = sorted(random.sample(range(p_init.shape[1]), num))
+    #         p_init = p_init[:, ids, :]
+    #         f_init = f_init[:, ids, :]
+    #
+    #         g_init = np.concatenate(((g_init[0, :3] - p_init.mean(1)) / (p_init.std(1) - 1e-8),
+    #                                  (g_init[0, 3:] - p_init.mean(1)) / (p_init.std(1) - 1e-8)), 0).reshape(
+    #             1, 6)
+    #         p_init = (p_init - p_init.mean(1)) / (p_init.std(1) - 1e-8)
+    #         f_init = (f_init - f_init.mean(1)) / (f_init.std(1) - 1e-8)
+    #
+    #         if f_init[0, :, :].min() > -4 and f_init[0, :, :].max() < 4:
+    #             gIndex[i] = g_init[0]
+    #             pInit[i] = p_init[0, :, :]
+    #             pFinal[i] = f_init[0, :, :]
+    #             if i < len(f_train):
+    #                 idx_tr.append(i)
+    #             else:
+    #                 idx_te.append(i)
+    #     except:
+    #         continue
+
     for i, f in enumerate(f_all):
-        try:
-            p_init = np.array(f.get('pInit'))[0].reshape((1, -1, 3))
-        except:
-            continue
-        f_init = np.array(f.get('pFinal'))[0].reshape((1, -1, 3))
-        g_init = np.array(f.get('gIndex'))[0].reshape((1, 6))
+        p_init = f['data'][:][:, :num, :]
+        f_init = f['data'][:][:, :num, :]
+        g_init = np.zeros((len(p_init), 6))
 
-        try:
-            ids = sorted(random.sample(range(p_init.shape[1]), num))
-            p_init = p_init[:, ids, :]
-            f_init = f_init[:, ids, :]
+        if i < len(f_train):
+            s += p_init.shape[0]
+        gIndex = np.vstack((gIndex, g_init))
+        pInit = np.vstack((pInit, p_init))
+        pFinal = np.vstack((pFinal, f_init))
 
-            g_init = np.concatenate(((g_init[0, :3] - p_init.mean(1)) / (p_init.std(1) - 1e-8),
-                                     (g_init[0, 3:] - p_init.mean(1)) / (p_init.std(1) - 1e-8)), 0).reshape(
-                1, 6)
-            # g_init = (g_init - p_init.mean(1)) / (p_init.std(1) - 1e-8)
-            p_init = (p_init - p_init.mean(1)) / (p_init.std(1) - 1e-8)
-            f_init = (f_init - f_init.mean(1)) / (f_init.std(1) - 1e-8)
+    gIndex = gIndex[1:]
+    pInit = pInit[1:]
+    pFinal = pFinal[1:]
 
-            if f_init[0, :, :].min() > -4 and f_init[0, :, :].max() < 4:
-                gIndex[i] = g_init[0]
-                pInit[i] = p_init[0, :, :]
-                pFinal[i] = f_init[0, :, :]
-                dims[i] = np.array([np.abs(p_init[0][:, 0].max() - p_init[0][:, 0].min()) + 1,
-                                    np.abs(p_init[0][:, 1].max() - p_init[0][:, 1].min()) + 1])
-                if i < len(f_train):
-                    idx_tr.append(i)
-                else:
-                    idx_te.append(i)
-        except:
-            continue
-
-    # p_init = f['data'][:][:, :num, :]
-    #     f_init = f['data'][:][:, :num, :]
-    #     g_init = np.zeros((len(p_init), 6))
-    #
-    #     if i < len(f_train):
-    #         s += p_init.shape[0]
-    #     gIndex = np.vstack((gIndex, g_init))
-    #     pInit = np.vstack((pInit, p_init))
-    #     pFinal = np.vstack((pFinal, f_init))
-    #
-    # gIndex = gIndex[1:]
-    # pInit = pInit[1:]
-    # pFinal = pFinal[1:]
-    #
-    # idx_tr = np.arange(s)
-    # idx_te = np.arange(s, len(pInit))[:100]
-    # dims = np.zeros((len(pInit), 2))
+    idx_tr = np.arange(s)
+    idx_te = np.arange(s, len(pInit))[:100]
+    pError = np.zeros((len(pInit), 1))
 
     data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
                   'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
                   'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
-                  'dims': dims[idx_tr].reshape((len(idx_tr), 2))}
+                  'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
     data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
                  'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
                  'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
-                 'dims': dims[idx_te].reshape((len(idx_te), 2))}
+                 'pError': pError[idx_te].reshape((len(idx_te), 1))}
 
     return data_train, data_test

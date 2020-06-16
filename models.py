@@ -45,36 +45,42 @@ class Model:
             'pError': tf.placeholder(tf.float32, shape=(None, 1)),
             'eval': tf.placeholder(tf.bool, shape=())
         }
-
         self.sess = tf.InteractiveSession()
         self.cnt = counter()
 
         # Get pose and shape
         if opt.problem == 'posh':
-            # self.pred_grasp, self.pred_pts = cnn_posh(opt, self.plh['pFinal'])
-
             # PointNet
             batch = tf.Variable(0)
             bn_decay = get_bn_decay(opt, batch)
+
+            # self.pred_grasp, self.pred_pts = cnn_posh(opt, self.plh['pFinal'])
             self.pred_grasp, self.pred_pts = cnn_posh_pointnet(opt, self.plh['pFinal'], self.plh['eval'], bn_decay)
 
-            self.loss_pts = tf.losses.mean_squared_error(
-                self.plh['pInit'], self.pred_pts)
+            x = tf.concat([tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 0],
+                           tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 2]], 1)
+            y = tf.concat([tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 0],
+                           tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 2]], 1)
+            self.loss_pts = tf.losses.mean_squared_error(x, y)
+            # self.loss_pts = tf.losses.mean_squared_error(self.plh['pInit'], self.pred_pts)
             self.loss_grasp = tf.losses.mean_squared_error(
                 self.plh['gIndex'], self.pred_grasp)
 
             learning_rate = get_learning_rate(opt, batch)
-            self.optim = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_pts + self.loss_grasp, global_step=batch)
+
+            # pts_vars = [var for var in tf.trainable_variables() if 'model_posh' in str(var)]
+            # grasp_vars = [var for var in tf.trainable_variables() if 'model_posh' in str(var)]
+            self.optim = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_pts, global_step=batch)
+            self.optim_grasp = tf.train.AdamOptimizer(learning_rate).minimize(self.loss_grasp)
+
+            tf.summary.scalar('loss', self.loss_pts)
             self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
 
         # Get heatmap
         if opt.problem == 'heatmap':
-            self.pred_score = cnn_heatmap(opt, self.plh['pInit'], self.plh['gIndex'])
-            self.loss_pts = tf.losses.sigmoid_cross_entropy(self.plh['pError'], self.pred_score)
+            self.pred_score = cnn_heatmap(opt, self.plh['pInit'], self.plh['gIndex'], self.plh['eval'])
+            self.loss_heatmap = tf.losses.mean_squared_error(self.plh['pError'], self.pred_score)
+            self.optim = tf.train.AdamOptimizer(opt.lr).minimize(self.loss_heatmap)
 
-            self.optim = tf.train.RMSPropOptimizer(opt.lr).minimize(self.loss_pts)
+            tf.summary.scalar('loss', self.loss_heatmap)
             self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
-
-        tf.summary.scalar('loss', self.loss_pts)
-
-
