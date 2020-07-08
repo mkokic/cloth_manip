@@ -67,18 +67,20 @@ class ClothModel(object):
 
             for iter in range(dtr[0].shape[0] // opt.bs):
                 train_batch = next(get_batch(dtr, opt.bs))
-                # aug_data = jitter_point_cloud(np.array(train_batch[2]).reshape((-1, opt.num, 3)))
+                aug_data = jitter_point_cloud(np.array(train_batch[0]).reshape((-1, opt.num, 3)))
                 feed_dict = dict()
-                feed_dict[plh[0]] = np.array(train_batch[0]).reshape((-1, opt.num * 3))
+                if opt.problem == 'heatmap':
+                    feed_dict[plh[0]] = aug_data.reshape((-1, opt.num * 3))
+                else:
+                    feed_dict[plh[0]] = np.array(train_batch[0]).reshape((-1, opt.num * 3))
                 feed_dict[plh[1]] = np.array(train_batch[1]).reshape((-1, 6))
-                # feed_dict[plh[2]] = aug_data.reshape((-1, opt.num * 3))
                 feed_dict[plh[2]] = np.array(train_batch[2]).reshape((-1, opt.num * 3))
                 feed_dict[plh[3]] = np.array(train_batch[3]).reshape((-1, 1))
                 feed_dict[plh[-1]] = True
 
                 if opt.problem == 'posh':
-                    loss_tr_pts_, loss_tr_grasp_, _ = sess.run(
-                        [model.loss_pts, model.loss_grasp, model.optim], feed_dict)
+                    loss_tr_pts_, loss_tr_grasp_, _, __ = sess.run(
+                        [model.loss_pts, model.loss_grasp, model.optim, model.optim_grasp], feed_dict)
                     losses_tr_pts.append(loss_tr_pts_)
                     losses_tr_grasp.append(loss_tr_grasp_)
                 else:
@@ -143,50 +145,53 @@ class ClothModel(object):
         for k in range(dte[0].shape[0]):
             if opt.problem == 'posh':
                 # Display points and grasp error
-                pts_err = (((pts[k].reshape(-1, 3) * 100.)[:, [0, 2]] - (dte[0][k].reshape(-1, 3) * 100.)[:, [0, 2]]) ** 2).mean()
+                pts_err = ((pts[k].reshape(-1, 3)[:, [0, 2]] - dte[0][k].reshape(-1, 3)[:, [0, 2]]) ** 2).mean()
                 pts_err_all.append(pts_err)
                 grasp_err = ((grasp[k].reshape(-1, 3) - dte[1][k].reshape(-1, 3)) ** 2).mean()
                 print('Points error: %.5f, Grasp error: %.5f' % (pts_err, grasp_err))
                 # Plot predicted shape
                 grasp[:, [1, 4]] = 0
-                plot(dte[0][k].reshape(-1, 3) * 100.,
-                     dte[1][k].reshape(-1, 3) * 100.,
-                     dte[2][k].reshape(-1, 3) * 100.,
-                     pts[k].reshape(-1, 3) * 100.,
-                     grasp[k].reshape(-1, 3) * 100.)
+                pts[k].reshape(-1, 3)[:, 1] = 0.
+                plot(dte[0][k].reshape(-1, 3),
+                     dte[1][k].reshape(-1, 3),
+                     dte[2][k].reshape(-1, 3),
+                     pts[k].reshape(-1, 3),
+                     grasp[k].reshape(-1, 3))
 
-                # # Reset graph and het heatmp
-                # tf.reset_default_graph()
-                # opt.problem = 'heatmap'
-                # model = Model(opt)
-                # plh = [model.plh['pInit'],
-                #        model.plh['gIndex'],
-                #        model.plh['pFinal'],
-                #        model.plh['pError'],
-                #        model.plh['eval']]
-                # model.sess = tf.InteractiveSession()
-                # model.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
-                # load_checkpoint('models_' + str(opt.problem), model.sess)
-                # # Create grasps
-                # pred_cloth = np.array(pts[k]).reshape((opt.num, 3))
-                # # pred_cloth_grasps = list()
-                # # for p1 in range(0, opt.num, 100):
-                # #     for p2 in range(0, opt.num, 100):
-                # #         pred_cloth_grasps.append(list(pred_cloth[p1]) + list(pred_cloth[p2]))
-                #
-                # # Alternatively run ground truth grasps to check accuracy
-                # pred_cloth_grasps = dte[1]
-                #
-                # # Run predicted cloth and grasps through the heatmap network
-                # feed_dict = dict()
+                # Reset graph and het heatmp
+                tf.reset_default_graph()
+                opt.problem = 'heatmap'
+                model = Model(opt)
+                plh = [model.plh['pInit'],
+                       model.plh['gIndex'],
+                       model.plh['pFinal'],
+                       model.plh['pError'],
+                       model.plh['eval']]
+                model.sess = tf.InteractiveSession()
+                model.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
+                load_checkpoint('models_' + str(opt.problem), model.sess)
+                # Create grasps
+                pred_cloth = np.array(pts[k]).reshape((opt.num, 3))
+                # pred_cloth_grasps = list()
+                # for p1 in range(0, opt.num, 200):
+                #     for p2 in range(0, opt.num, 200):
+                #         pred_cloth_grasps.append(list(pred_cloth[p1]) + list(pred_cloth[p2]))
+
+                # Alternatively run ground truth grasps to check accuracy
+                pred_cloth_grasps = dte[1][k]
+
+                # Run predicted cloth and grasps through the heatmap network
+                feed_dict = dict()
                 # feed_dict[plh[0]] = np.repeat(pred_cloth, len(pred_cloth_grasps)).reshape((-1, opt.num * 3))
-                # feed_dict[plh[1]] = np.array(pred_cloth_grasps).reshape((-1, 6))
-                # feed_dict[plh[-1]] = False
-                # # Get predicted grasp scores
-                # scores = model.sess.run(model.pred_score, feed_dict).reshape(-1)
-                # print('Predicted grasp score: %.5f, Real grasp score: %.5f' % (scores[k], dte[-1][k]))
-                # opt.problem = 'posh'
-                # embed()
+                feed_dict[plh[0]] = pred_cloth.reshape((-1, opt.num * 3))
+                feed_dict[plh[1]] = np.array(pred_cloth_grasps).reshape((-1, 6))
+                feed_dict[plh[-1]] = False
+                # Get predicted grasp scores
+                scores = model.sess.run(model.pred_score, feed_dict).reshape(-1, )
+                print('Predicted grasp score: %.5f, Real grasp score: %.5f' % (scores[0], dte[-1][k]))
+                # print('Predicted grasp score: %.5f' % scores)
+                opt.problem = 'posh'
+                embed()
 
             if opt.problem == 'heatmap':
                 print('Predicted grasp score: %.5f, Real grasp score: %.5f' % (scores[k], dte[-1][k]))

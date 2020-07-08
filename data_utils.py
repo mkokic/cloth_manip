@@ -50,7 +50,7 @@ def rotate_point_cloud(batch_data):
     return rotated_data
 
 
-def jitter_point_cloud(batch_data, sigma=0.01, clip=0.05):
+def jitter_point_cloud(batch_data, sigma=0.1, clip=0.05):
     """ Randomly jitter points. jittering is per point.
         Input:
           BxNx3 array, original batch of point clouds

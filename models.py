@@ -57,12 +57,12 @@ class Model:
             # self.pred_grasp, self.pred_pts = cnn_posh(opt, self.plh['pFinal'])
             self.pred_grasp, self.pred_pts = cnn_posh_pointnet(opt, self.plh['pFinal'], self.plh['eval'], bn_decay)
 
-            x = tf.concat([tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 0],
-                           tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 2]], 1)
-            y = tf.concat([tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 0],
-                           tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 2]], 1)
-            self.loss_pts = tf.losses.mean_squared_error(x, y)
-            # self.loss_pts = tf.losses.mean_squared_error(self.plh['pInit'], self.pred_pts)
+            # x = tf.concat([tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 0],
+            #                tf.reshape(self.plh['pInit'], [-1, opt.num, 3])[:, :, 2]], 1)
+            # y = tf.concat([tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 0],
+            #                tf.reshape(self.pred_pts, [-1, opt.num, 3])[:, :, 2]], 1)
+            # self.loss_pts = tf.losses.mean_squared_error(x, y)
+            self.loss_pts = tf.losses.mean_squared_error(self.plh['pInit'], self.pred_pts)
             self.loss_grasp = tf.losses.mean_squared_error(
                 self.plh['gIndex'], self.pred_grasp)
 
