@@ -3,9 +3,9 @@ import numpy as np
 import glob
 import random
 import scipy
-from vis_utils import *
+from sklearn.preprocessing import StandardScaler
 from IPython import embed
-import numpy_indexed as npi
+from vis_utils import *
 
 
 def scale_point_cloud(batch_data):
@@ -174,7 +174,7 @@ def load_data_cloth(num):
     return data_train, data_test
 
 
-def load_data_shirt(num):
+def load_data(num):
     # path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/hdf5/mn40/'
     # f_train = list()
     # for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5'):
@@ -186,14 +186,16 @@ def load_data_shirt(num):
     #             continue
     # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '200_train/*/*.hdf5') if 'tshirt_18' in f_hdf5]
 
-    path = '/mnt/md0/mkokic/Github_Mia/cloth-bullet-extensions/bobak/modelnet40/data/'
-    f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*train*.h5')]
-    f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*/*test*.h5')]
+    path = '/home/melhua/code/pointnet/data/modelnet40_ply_hdf5_2048_pts'
+    # f_train = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*train*.h5')]
+    # f_test = [h5py.File(f_hdf5, 'r') for f_hdf5 in glob.glob(path + '/*test*.h5')]
+    f_train = [f_xyz for f_xyz in glob.glob(path + '/test/*.xyz')][:64]
+    f_test = [f_xyz for f_xyz in glob.glob(path + '/test/*.xyz')][-32:]
 
-    random.shuffle(f_train)
+    # random.shuffle(f_train)
     f_all = f_train + f_test
 
-    pInit = np.zeros((1, num, 3))
+    pInit = np.zeros((1, 32, 32, 32))
     gIndex = np.zeros((1, 6))
     pFinal = np.zeros((1, num, 3))
     s = 0
@@ -235,12 +237,29 @@ def load_data_shirt(num):
     #         continue
 
     for i, f in enumerate(f_all):
-        p_init = f['data'][:][:, :num, :]
-        f_init = f['data'][:][:, :num, :]
-        g_init = np.zeros((len(p_init), 6))
+        # f_init = f['data'][:][:, :num, :]
+        # p_init = f['data'][:][:, :num, :]
+        # try:
+        pts_file = np.array([pts[:-3].strip('e-').split(' ') for pts in open(f, "r").readlines()],
+                            dtype=float).reshape(-1, 3)
+        scaler = StandardScaler()
+        pts_file = scaler.fit_transform(pts_file)
+        a = np.abs(scipy.stats.zscore(pts_file))
+        pts_file = pts_file[(a < 3).all(1)]
+        pts_file = pts_file[:num, :]
+        pts_scaled = np.array(
+            (pts_file - pts_file.min(0).min()) / (pts_file.max(0).max() - pts_file.min(0).min()) * 31,
+            dtype=np.uint8).reshape((-1, 3))
+        p_init = np.zeros((32, 32, 32))
+        p_init[pts_scaled[:, 0], pts_scaled[:, 1], pts_scaled[:, 2]] = 1
+        p_init = p_init.reshape((1, 32, 32, 32))
+        f_init = pts_file.reshape(1, num, 3)
+        # except:
+        #     continue
 
+        g_init = np.zeros((len(f_init), 6))
         if i < len(f_train):
-            s += p_init.shape[0]
+            s += f_init.shape[0]
         gIndex = np.vstack((gIndex, g_init))
         pInit = np.vstack((pInit, p_init))
         pFinal = np.vstack((pFinal, f_init))
@@ -250,16 +269,15 @@ def load_data_shirt(num):
     pFinal = pFinal[1:]
 
     idx_tr = np.arange(s)
-    idx_te = np.arange(s, len(pInit))[:100]
+    idx_te = np.arange(s, len(pInit))
     pError = np.zeros((len(pInit), 1))
 
-    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), num * 3)),
+    data_train = {'pInit': pInit[idx_tr].reshape((len(idx_tr), 32, 32, 32)),
                   'gIndex': gIndex[idx_tr].reshape(len(idx_tr), 6),
                   'pFinal': pFinal[idx_tr].reshape((len(idx_tr), num * 3)),
                   'pError': pError[idx_tr].reshape((len(idx_tr), 1))}
-    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), num * 3)),
+    data_test = {'pInit': pInit[idx_te].reshape((len(idx_te), 32, 32, 32)),
                  'gIndex': gIndex[idx_te].reshape(len(idx_te), 6),
                  'pFinal': pFinal[idx_te].reshape((len(idx_te), num * 3)),
                  'pError': pError[idx_te].reshape((len(idx_te), 1))}
-
     return data_train, data_test

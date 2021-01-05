@@ -48,7 +48,7 @@ def main():
             gIndex = pInit.reshape(cloth.pN, 3)[grasp_id].reshape(1, 3)
 
             f_train = h5py.File(
-                '/mnt/md0/mkokic/Github_Mia/cloth_manip/create_cloth/hdf5/cloth_' + str(xdim) + 'x' + str(
+                '/home/code/cloth_manip/create_cloth/hdf5/cloth_' + str(xdim) + 'x' + str(
                     ydim) + '_' + str(
                     grasp_id) + '.hdf5', 'w')
             pInit_ = f_train.create_dataset("pInit", (pInit.shape[0], pInit.shape[1]),
