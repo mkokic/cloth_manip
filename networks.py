@@ -25,10 +25,6 @@ def cnn_posh_pointnet(opt, input_p, is_training, bn_decay, reuse=False):
                              padding='VALID', stride=[1, 1],
                              bn=True, is_training=is_training,
                              scope='conv3', bn_decay=bn_decay)
-        net = tf_util.conv2d(net, 256, [1, 1],
-                             padding='VALID', stride=[1, 1],
-                             bn=True, is_training=is_training,
-                             scope='conv4', bn_decay=bn_decay)
 
         # Symmetric function: max pooling
         net = tf_util.max_pool2d(net, [num_point, 1],

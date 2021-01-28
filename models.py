@@ -68,7 +68,7 @@ class Model:
                                                                                      self.plh['eval'], bn_decay)
                 # self.loss_pts = tf.losses.mean_squared_error(self.plh['pInit'], self.pred_pts)
                 self.loss_pts = tf.reduce_mean(
-                    tf.nn.weighted_cross_entropy_with_logits(self.plh['pInit'], self.pred_pts, 20))
+                    tf.nn.weighted_cross_entropy_with_logits(self.plh['pInit'], self.pred_pts, 35))
                 self.loss_grasp = tf.losses.mean_squared_error(self.plh['gIndex'], self.pred_grasp)
 
                 learning_rate = get_learning_rate(opt, batch)

@@ -13,7 +13,7 @@ class TrainOptions(object):
         self.parser.add_argument('--problem', required=True, type=str,
                                  choices=['posh', 'heatmap'], default='posh')
         self.parser.add_argument('--cont', type=int, default=0)
-        self.parser.add_argument('--bs', type=int, default=16)
+        self.parser.add_argument('--bs', type=int, default=32)
         self.parser.add_argument('--epochs', type=int, default=50)
         self.parser.add_argument('--lr', type=float, default=0.001)
         self.parser.add_argument('--num', type=float, default=1024)

@@ -64,14 +64,14 @@ class ClothModel(object):
 
             for iter in range(dtr[0].shape[0] // opt.bs):
                 train_batch = next(get_batch(dtr, opt.bs))
-                # aug_data = jitter_point_cloud(np.array(train_batch[0]).reshape((-1, opt.num, 3)))
+                aug_data = rotate_point_cloud(jitter_point_cloud(np.array(train_batch[2]).reshape((-1, opt.num, 3))))
                 feed_dict = dict()
                 # if opt.problem == 'heatmap':
                 #     feed_dict[plh[0]] = aug_data.reshape((-1, opt.num * 3))
                 # else:
                 feed_dict[plh[0]] = np.array(train_batch[0]).reshape((-1, 32, 32, 32))
                 feed_dict[plh[1]] = np.array(train_batch[1]).reshape((-1, 6))
-                feed_dict[plh[2]] = np.array(train_batch[2]).reshape((-1, opt.num * 3))
+                feed_dict[plh[2]] = np.array(aug_data).reshape((-1, opt.num * 3))
                 feed_dict[plh[3]] = np.array(train_batch[3]).reshape((-1, 1))
                 feed_dict[plh[-1]] = True
 

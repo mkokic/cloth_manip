@@ -3,12 +3,13 @@ from mpl_toolkits.mplot3d import axes3d
 import matplotlib
 
 
-def plot_single(input):
+def plot_single(input, limit=False):
     fig = plt.figure(figsize=(6, 6))
     ax1 = fig.add_subplot(111, projection='3d')
-    ax1.set_xlim([0, 32])
-    ax1.set_ylim([0, 32])
-    ax1.set_zlim([0, 32])
+    if limit:
+        ax1.set_xlim([0, 32])
+        ax1.set_ylim([0, 32])
+        ax1.set_zlim([0, 32])
     ax1.scatter(input[:, 0], input[:, 1], input[:, 2], c='gray', marker='.', alpha=1.0)
     plt.show()
 
